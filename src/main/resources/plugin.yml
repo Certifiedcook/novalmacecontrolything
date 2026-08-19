@@ -1,0 +1,56 @@
+name: xtxsMaceControl
+version: '${project.version}'
+main: io.github.certifiedcook.xtxsmacecontrol.XtxsMaceControl
+api-version: '1.21'
+authors: [Certifiedcook]
+description: "xtx's MaceControl - overengineered mace policy and anti-abuse controls."
+prefix: "xtx's MaceControl"
+
+commands:
+  macecontrol:
+    description: Open or administer xtx's MaceControl.
+    aliases: [mc, macectl, xtxmc]
+    usage: /macecontrol [status|reload|lockdown|audit|inspect|issue|confiscate|retire|violations|help]
+    permission: xtxsmacecontrol.admin
+
+permissions:
+  xtxsmacecontrol.admin:
+    description: Full administration access.
+    default: op
+  xtxsmacecontrol.acquire:
+    description: Allows acquiring a mace when acquisition permission is required.
+    default: true
+  xtxsmacecontrol.use:
+    description: Allows using a mace when use permission is required.
+    default: true
+  xtxsmacecontrol.bypass.all:
+    description: Bypasses every policy check.
+    default: op
+    children:
+      xtxsmacecontrol.bypass.acquire: true
+      xtxsmacecontrol.bypass.possession: true
+      xtxsmacecontrol.bypass.use: true
+      xtxsmacecontrol.bypass.cooldown: true
+      xtxsmacecontrol.bypass.damage: true
+      xtxsmacecontrol.bypass.enchantments: true
+      xtxsmacecontrol.bypass.storage: true
+      xtxsmacecontrol.bypass.ownership: true
+      xtxsmacecontrol.bypass.world: true
+  xtxsmacecontrol.bypass.acquire:
+    default: op
+  xtxsmacecontrol.bypass.possession:
+    default: op
+  xtxsmacecontrol.bypass.use:
+    default: op
+  xtxsmacecontrol.bypass.cooldown:
+    default: op
+  xtxsmacecontrol.bypass.damage:
+    default: op
+  xtxsmacecontrol.bypass.enchantments:
+    default: op
+  xtxsmacecontrol.bypass.storage:
+    default: op
+  xtxsmacecontrol.bypass.ownership:
+    default: op
+  xtxsmacecontrol.bypass.world:
+    default: op
