@@ -56,10 +56,44 @@ public final class AuditService {
         for (int slot = 0; slot < contents.length; slot++) {
             ItemStack item = contents[slot];
             if (plugin.items().isMace(item)) {
-                String serial = plugin.items().serial(item);
-                boolean newIssuance = serial == null || plugin.registry().get(serial) == null;
+                if (!storageLocationAllowed(player, location)) {
+                    inventory.setItem(slot, null);
+                    plugin.enforcement().confiscated(player, item, "maces are not allowed in " + location.toLowerCase(Locale.ROOT));
+                    violations++;
+                    continue;
+                }
 
-                if (newIssuance && plugin.getConfig().getBoolean("general.auto-register-existing-maces", true)) {
+                String serial = plugin.items().serial(item);
+                boolean known = serial != null && plugin.registry().get(serial) != null;
+                boolean newIssuance = !known;
+
+                if (serial != null && !known
+                        && plugin.getConfig().getBoolean("anti-duplication.reject-foreign-serials", false)) {
+                    inventory.setItem(slot, null);
+                    plugin.enforcement().confiscated(player, item, "unknown/foreign mace serial");
+                    violations++;
+                    continue;
+                }
+
+                Decision enchantDecision = plugin.policy().enchantments(player, item);
+                if (!enchantDecision.allowed()) {
+                    if (!trySanitizeEnchantments(player, item)) {
+                        inventory.setItem(slot, null);
+                        plugin.enforcement().confiscated(player, item, enchantDecision.reason());
+                        violations++;
+                        continue;
+                    }
+                    inventory.setItem(slot, item);
+                }
+
+                if (newIssuance) {
+                    if (!plugin.getConfig().getBoolean("general.auto-register-existing-maces", true)) {
+                        inventory.setItem(slot, null);
+                        plugin.enforcement().confiscated(player, item, "unregistered mace");
+                        violations++;
+                        continue;
+                    }
+
                     Decision decision = plugin.policy().acquisition(player, item, "AUDIT", true);
                     if (decision.allowed()) {
                         plugin.registry().register(item, player, "AUDIT");
@@ -69,26 +103,25 @@ public final class AuditService {
                         plugin.enforcement().confiscated(player, item, decision.reason());
                         violations++;
                     }
-                } else {
-                    Decision decision = plugin.policy().acquisition(player, item, "AUDIT", false);
-                    if (!decision.allowed()) {
-                        if (trySanitizeEnchantments(player, item)) {
-                            inventory.setItem(slot, item);
-                        } else {
-                            inventory.setItem(slot, null);
-                            plugin.enforcement().confiscated(player, item, decision.reason());
-                            violations++;
-                        }
-                    } else {
-                        MaceRecord record = plugin.registry().get(plugin.items().serial(item));
-                        if (record != null && record.owner() != null && !record.owner().equals(player.getUniqueId())) {
-                            plugin.registry().transfer(record.serial(), player.getUniqueId());
-                        }
-                    }
+                    continue;
+                }
+
+                Decision decision = plugin.policy().acquisition(player, item, "AUDIT", false);
+                if (!decision.allowed()) {
+                    inventory.setItem(slot, null);
+                    plugin.enforcement().confiscated(player, item, decision.reason());
+                    violations++;
+                    continue;
+                }
+
+                MaceRecord record = plugin.registry().get(plugin.items().serial(item));
+                if (record != null && record.owner() != null && !record.owner().equals(player.getUniqueId())) {
+                    plugin.registry().transfer(record.serial(), player.getUniqueId());
                 }
             } else if (plugin.items().containsPortableMace(item)
                     && !plugin.getConfig().getBoolean("storage.allow-portable-containers", false)
-                    && !player.hasPermission("xtxsmacecontrol.bypass.storage")) {
+                    && !player.hasPermission("xtxsmacecontrol.bypass.storage")
+                    && !player.hasPermission("xtxsmacecontrol.bypass.all")) {
                 inventory.setItem(slot, null);
                 plugin.enforcement().blocked(player, "portable containers may not contain maces");
                 violations++;
@@ -105,8 +138,7 @@ public final class AuditService {
             ItemStack item = inv.getItem(slot);
             if (plugin.items().isMace(item) || plugin.items().containsPortableMace(item)) {
                 inv.setItem(slot, null);
-                String serial = plugin.items().serial(item);
-                if (serial != null) plugin.registry().setStatus(serial, "CONFISCATED");
+                retireNestedSerials(item, "CONFISCATED");
                 removed++;
             }
         }
@@ -172,6 +204,17 @@ public final class AuditService {
         return removed;
     }
 
+    private boolean storageLocationAllowed(Player player, String location) {
+        if (player.hasPermission("xtxsmacecontrol.bypass.all") || player.hasPermission("xtxsmacecontrol.bypass.storage")) {
+            return true;
+        }
+        return switch (location) {
+            case "PLAYER_INVENTORY" -> plugin.getConfig().getBoolean("storage.allow-player-inventory", true);
+            case "ENDER_CHEST" -> plugin.getConfig().getBoolean("storage.allow-ender-chest", false);
+            default -> plugin.getConfig().getBoolean("storage.allow-containers", false);
+        };
+    }
+
     private boolean trySanitizeEnchantments(Player player, ItemStack item) {
         if (!plugin.getConfig().getBoolean("enchantments.remove-illegal-instead-of-confiscating", true)) return false;
         var meta = item.getItemMeta();
@@ -196,8 +239,13 @@ public final class AuditService {
         if (changed) {
             item.setItemMeta(meta);
             plugin.enforcement().blocked(player, "illegal mace enchantments were sanitized");
-            return true;
         }
-        return false;
+        return changed;
+    }
+
+    private void retireNestedSerials(ItemStack item, String status) {
+        if (item == null) return;
+        String direct = plugin.items().serial(item);
+        if (direct != null) plugin.registry().setStatus(direct, status);
     }
 }
