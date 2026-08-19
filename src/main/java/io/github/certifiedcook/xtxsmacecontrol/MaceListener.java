@@ -66,7 +66,8 @@ public final class MaceListener implements Listener {
 
         if (!plugin.items().isMace(cursor)) {
             if (!plugin.getConfig().getBoolean("storage.allow-portable-containers", false)
-                    && !player.hasPermission("xtxsmacecontrol.bypass.storage")) {
+                    && !player.hasPermission("xtxsmacecontrol.bypass.storage")
+                    && !player.hasPermission("xtxsmacecontrol.bypass.all")) {
                 event.setCancelled(true);
                 plugin.enforcement().blocked(player, "portable containers may not contain maces");
             }
@@ -126,6 +127,11 @@ public final class MaceListener implements Listener {
         boolean newIssuance = plugin.items().serial(mace) == null
                 || plugin.registry().get(plugin.items().serial(mace)) == null;
         if (newIssuance) {
+            if (!plugin.getConfig().getBoolean("general.auto-register-existing-maces", true)) {
+                event.setCancelled(true);
+                plugin.enforcement().blocked(player, "unregistered mace");
+                return;
+            }
             Decision acquire = plugin.policy().acquisition(player, mace, "USE_DISCOVERY", true);
             if (!acquire.allowed()) {
                 event.setCancelled(true);
@@ -148,6 +154,7 @@ public final class MaceListener implements Listener {
             return;
         }
 
+        transferIfNeeded(player, mace);
         event.setDamage(plugin.policy().cappedDamage(player, target, event.getDamage()));
         plugin.policy().consumeUse(player, mace, target);
     }
@@ -155,7 +162,8 @@ public final class MaceListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMend(PlayerItemMendEvent event) {
         if (!plugin.items().isMace(event.getItem())) return;
-        if (!plugin.getConfig().getBoolean("repair.allow-mending", true)) {
+        if (!plugin.getConfig().getBoolean("repair.allow-mending", true)
+                && !event.getPlayer().hasPermission("xtxsmacecontrol.bypass.all")) {
             event.setCancelled(true);
             plugin.enforcement().blocked(event.getPlayer(), "mending is disabled for maces");
         }
@@ -172,9 +180,9 @@ public final class MaceListener implements Listener {
             return;
         }
 
+        String renameText = event.getView().getRenameText();
         if (!plugin.getConfig().getBoolean("repair.allow-renaming", true)
-                && event.getInventory().getRenameText() != null
-                && !event.getInventory().getRenameText().isBlank()) {
+                && renameText != null && !renameText.isBlank()) {
             event.setResult(null);
         }
     }
@@ -196,13 +204,21 @@ public final class MaceListener implements Listener {
                 || plugin.items().containsPortableMace(cursor) || plugin.items().containsPortableMace(current);
         if (!involvesMace) return;
 
+        boolean storageBypass = player.hasPermission("xtxsmacecontrol.bypass.all")
+                || player.hasPermission("xtxsmacecontrol.bypass.storage");
         Inventory clicked = event.getClickedInventory();
-        if (clicked != null && clicked != player.getInventory()) {
+        if (clicked != null && clicked != player.getInventory() && !storageBypass) {
+            if (isExplicitlyBlocked(clicked.getType())) {
+                event.setCancelled(true);
+                plugin.enforcement().blocked(player, "maces are blocked in " + clicked.getType().name().toLowerCase(Locale.ROOT));
+                return;
+            }
+
             boolean ender = clicked.getType() == InventoryType.ENDER_CHEST;
             boolean allowed = ender
                     ? plugin.getConfig().getBoolean("storage.allow-ender-chest", false)
                     : plugin.getConfig().getBoolean("storage.allow-containers", false);
-            if (!allowed && !player.hasPermission("xtxsmacecontrol.bypass.storage")) {
+            if (!allowed) {
                 event.setCancelled(true);
                 plugin.enforcement().blocked(player, "mace storage is blocked here");
                 return;
@@ -315,6 +331,11 @@ public final class MaceListener implements Listener {
     public void onBlockDrop(BlockDropItemEvent event) {
         if (!plugin.isLockdown()) return;
         event.getItems().removeIf(item -> plugin.items().isMace(item.getItemStack()));
+    }
+
+    private boolean isExplicitlyBlocked(InventoryType type) {
+        return plugin.getConfig().getStringList("storage.blocked-inventory-types").stream()
+                .anyMatch(name -> name.equalsIgnoreCase(type.name()));
     }
 
     private void transferIfNeeded(Player player, ItemStack item) {
