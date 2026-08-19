@@ -2,6 +2,7 @@ package io.github.certifiedcook.xtxsmacecontrol;
 
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -21,40 +22,53 @@ public final class PolicyEngine {
     }
 
     public Decision acquisition(Player player, ItemStack mace, String source, boolean newIssuance) {
-        if (bypass(player, "acquire")) return Decision.allow();
+        if (player.hasPermission("xtxsmacecontrol.bypass.all")) return Decision.allow();
         if (!plugin.getConfig().getBoolean("general.enabled", true)) return Decision.allow();
-        if (plugin.isLockdown()) return Decision.deny("emergency lockdown");
-        if (!plugin.getConfig().getBoolean("acquisition.enabled", true)) return Decision.deny("acquisition is disabled");
 
-        if (plugin.getConfig().getBoolean("acquisition.require-permission", false)
-                && !player.hasPermission("xtxsmacecontrol.acquire")) {
-            return Decision.deny("missing acquisition permission");
+        boolean acquireBypass = player.hasPermission("xtxsmacecontrol.bypass.acquire");
+        if (!acquireBypass) {
+            if (plugin.isLockdown()) return Decision.deny("emergency lockdown");
+            if (!plugin.getConfig().getBoolean("acquisition.enabled", true)) return Decision.deny("acquisition is disabled");
+            if (plugin.getConfig().getBoolean("acquisition.require-permission", false)
+                    && !player.hasPermission("xtxsmacecontrol.acquire")) {
+                return Decision.deny("missing acquisition permission");
+            }
+
+            if ("CRAFT".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-crafting", true)) {
+                return Decision.deny("mace crafting is disabled");
+            }
+            if ("LOOT".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-loot", true)) {
+                return Decision.deny("maces from loot are disabled");
+            }
+            if ("PICKUP".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-pickup", true)) {
+                return Decision.deny("mace pickup is disabled");
+            }
+            if ("CREATIVE".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-creative", false)) {
+                return Decision.deny("creative mace acquisition is disabled");
+            }
+            if ("ADMIN".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-admin-issue", true)) {
+                return Decision.deny("admin mace issuance is disabled");
+            }
         }
 
         Decision world = worldAndGamemode(player);
         if (!world.allowed()) return world;
 
-        if ("CRAFT".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-crafting", true)) {
-            return Decision.deny("mace crafting is disabled");
+        String serial = plugin.items().serial(mace);
+        MaceRecord knownRecord = plugin.registry().get(serial);
+        if (newIssuance && serial != null && knownRecord == null
+                && plugin.getConfig().getBoolean("anti-duplication.reject-foreign-serials", false)) {
+            return Decision.deny("unknown/foreign mace serial");
         }
-        if ("LOOT".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-loot", true)) {
-            return Decision.deny("maces from loot are disabled");
-        }
-        if ("PICKUP".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-pickup", true)) {
-            return Decision.deny("mace pickup is disabled");
-        }
-        if ("CREATIVE".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-creative", false)) {
-            return Decision.deny("creative mace acquisition is disabled");
-        }
-        if ("ADMIN".equals(source) && !plugin.getConfig().getBoolean("acquisition.allow-admin-issue", true)) {
-            return Decision.deny("admin mace issuance is disabled");
+        if (!newIssuance && knownRecord != null && !"ACTIVE".equalsIgnoreCase(knownRecord.status())) {
+            return Decision.deny("mace serial is marked " + knownRecord.status());
         }
 
         Decision enchants = enchantments(player, mace);
         if (!enchants.allowed()) return enchants;
 
         if (!player.hasPermission("xtxsmacecontrol.bypass.possession")) {
-            boolean itemAlreadyPossessed = source.equals("AUDIT") || source.equals("USE_DISCOVERY");
+            boolean itemAlreadyPossessed = "AUDIT".equals(source) || "USE_DISCOVERY".equals(source);
             int adjustment = itemAlreadyPossessed ? 1 : 0;
 
             int maxPossession = plugin.getConfig().getInt("stock.per-player-active-possession", 1);
@@ -93,7 +107,8 @@ public final class PolicyEngine {
     public Decision newIssuance(Player player, String source) {
         boolean exemptAdmin = "ADMIN".equals(source)
                 && plugin.getConfig().getBoolean("enforcement.exempt-admin-issued-from-stock-cap", false);
-        if (exemptAdmin || player.hasPermission("xtxsmacecontrol.bypass.possession")) return Decision.allow();
+        if (exemptAdmin || player.hasPermission("xtxsmacecontrol.bypass.all")
+                || player.hasPermission("xtxsmacecontrol.bypass.possession")) return Decision.allow();
 
         int globalActive = plugin.getConfig().getInt("stock.global-active-registered-cap", -1);
         if (globalActive >= 0 && plugin.registry().activeCount() >= globalActive) {
@@ -121,7 +136,9 @@ public final class PolicyEngine {
     }
 
     public Decision ownership(Player player, ItemStack mace) {
-        if (bypass(player, "ownership")) return Decision.allow();
+        if (player.hasPermission("xtxsmacecontrol.bypass.all") || player.hasPermission("xtxsmacecontrol.bypass.ownership")) {
+            return Decision.allow();
+        }
         if (!plugin.getConfig().getBoolean("ownership.enabled", true)) return Decision.allow();
 
         String serial = plugin.items().serial(mace);
@@ -163,46 +180,48 @@ public final class PolicyEngine {
     }
 
     public Decision use(Player player, ItemStack mace, LivingEntity target) {
-        if (bypass(player, "use")) return Decision.allow();
+        if (player.hasPermission("xtxsmacecontrol.bypass.all")) return Decision.allow();
         if (!plugin.getConfig().getBoolean("general.enabled", true)) return Decision.allow();
-        if (!plugin.getConfig().getBoolean("use.enabled", true)) return Decision.deny("mace use is disabled");
-        if (plugin.isLockdown()) return Decision.deny("emergency lockdown");
 
-        if (plugin.getConfig().getBoolean("use.require-permission", false)
-                && !player.hasPermission("xtxsmacecontrol.use")) {
-            return Decision.deny("missing mace-use permission");
+        boolean useBypass = player.hasPermission("xtxsmacecontrol.bypass.use");
+        if (!useBypass) {
+            if (!plugin.getConfig().getBoolean("use.enabled", true)) return Decision.deny("mace use is disabled");
+            if (plugin.isLockdown()) return Decision.deny("emergency lockdown");
+            if (plugin.getConfig().getBoolean("use.require-permission", false)
+                    && !player.hasPermission("xtxsmacecontrol.use")) {
+                return Decision.deny("missing mace-use permission");
+            }
+            if (player.getGameMode() == GameMode.CREATIVE && plugin.getConfig().getBoolean("use.block-in-creative", true)) {
+                return Decision.deny("mace use is disabled in creative");
+            }
+            if (player.getGameMode() == GameMode.SPECTATOR && plugin.getConfig().getBoolean("use.block-in-spectator", true)) {
+                return Decision.deny("mace use is disabled in spectator");
+            }
+            if (player.isFlying() && plugin.getConfig().getBoolean("use.block-while-flying", true)) {
+                return Decision.deny("mace use while flying is disabled");
+            }
+            if (player.isGliding() && plugin.getConfig().getBoolean("use.block-while-gliding", true)) {
+                return Decision.deny("mace use while gliding is disabled");
+            }
+            if (player.isInsideVehicle() && plugin.getConfig().getBoolean("use.block-in-vehicle", false)) {
+                return Decision.deny("mace use in vehicles is disabled");
+            }
+
+            double minFall = plugin.getConfig().getDouble("use.minimum-fall-distance", 0.0);
+            double maxFall = plugin.getConfig().getDouble("use.maximum-fall-distance", -1.0);
+            if (player.getFallDistance() < minFall) return Decision.deny("minimum fall distance not met");
+            if (maxFall >= 0 && player.getFallDistance() > maxFall) return Decision.deny("maximum permitted fall distance exceeded");
         }
 
         Decision world = worldAndGamemode(player);
         if (!world.allowed()) return world;
-
-        if (player.getGameMode() == GameMode.CREATIVE && plugin.getConfig().getBoolean("use.block-in-creative", true)) {
-            return Decision.deny("mace use is disabled in creative");
-        }
-        if (player.getGameMode() == GameMode.SPECTATOR && plugin.getConfig().getBoolean("use.block-in-spectator", true)) {
-            return Decision.deny("mace use is disabled in spectator");
-        }
-        if (player.isFlying() && plugin.getConfig().getBoolean("use.block-while-flying", true)) {
-            return Decision.deny("mace use while flying is disabled");
-        }
-        if (player.isGliding() && plugin.getConfig().getBoolean("use.block-while-gliding", true)) {
-            return Decision.deny("mace use while gliding is disabled");
-        }
-        if (player.isInsideVehicle() && plugin.getConfig().getBoolean("use.block-in-vehicle", false)) {
-            return Decision.deny("mace use in vehicles is disabled");
-        }
-
-        double minFall = plugin.getConfig().getDouble("use.minimum-fall-distance", 0.0);
-        double maxFall = plugin.getConfig().getDouble("use.maximum-fall-distance", -1.0);
-        if (player.getFallDistance() < minFall) return Decision.deny("minimum fall distance not met");
-        if (maxFall >= 0 && player.getFallDistance() > maxFall) return Decision.deny("maximum permitted fall distance exceeded");
 
         Decision enchants = enchantments(player, mace);
         if (!enchants.allowed()) return enchants;
         Decision owner = ownership(player, mace);
         if (!owner.allowed()) return owner;
 
-        if (!bypass(player, "cooldown")) {
+        if (!player.hasPermission("xtxsmacecontrol.bypass.cooldown")) {
             long now = System.currentTimeMillis();
             long playerCooldown = millis(plugin.getConfig().getDouble("use.player-cooldown-seconds", 8.0));
             if (now - plugin.registry().playerUse(player.getUniqueId()) < playerCooldown) {
@@ -231,7 +250,9 @@ public final class PolicyEngine {
     }
 
     public Decision enchantments(Player player, ItemStack mace) {
-        if (bypass(player, "enchantments")) return Decision.allow();
+        if (player.hasPermission("xtxsmacecontrol.bypass.all") || player.hasPermission("xtxsmacecontrol.bypass.enchantments")) {
+            return Decision.allow();
+        }
         Map<Enchantment, Integer> enchants = mace.getEnchantments();
         boolean blockUnlisted = plugin.getConfig().getBoolean("enchantments.block-unlisted", true);
 
@@ -251,9 +272,11 @@ public final class PolicyEngine {
     }
 
     public double cappedDamage(Player attacker, LivingEntity target, double proposed) {
-        if (bypass(attacker, "damage") || !plugin.getConfig().getBoolean("damage.enabled", true)) return proposed;
-        double result = proposed * plugin.getConfig().getDouble("damage.scale", 1.0);
+        if (attacker.hasPermission("xtxsmacecontrol.bypass.all")
+                || attacker.hasPermission("xtxsmacecontrol.bypass.damage")
+                || !plugin.getConfig().getBoolean("damage.enabled", true)) return proposed;
 
+        double result = proposed * plugin.getConfig().getDouble("damage.scale", 1.0);
         double globalMax = plugin.getConfig().getDouble("damage.global-max", -1.0);
         double pvpMax = plugin.getConfig().getDouble("damage.pvp-max", -1.0);
         double pveMax = plugin.getConfig().getDouble("damage.pve-max", -1.0);
@@ -264,9 +287,8 @@ public final class PolicyEngine {
 
         double percent = plugin.getConfig().getDouble("damage.max-percent-of-target-max-health", -1.0);
         if (percent >= 0) {
-            double maxHealth = target.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) == null
-                    ? target.getHealth()
-                    : target.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
+            AttributeInstance maxHealthAttribute = target.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+            double maxHealth = maxHealthAttribute == null ? target.getHealth() : maxHealthAttribute.getValue();
             result = Math.min(result, maxHealth * percent);
         }
         return Math.max(0.0, result);
@@ -278,7 +300,7 @@ public final class PolicyEngine {
     }
 
     private Decision worldAndGamemode(Player player) {
-        if (!bypass(player, "world")) {
+        if (!player.hasPermission("xtxsmacecontrol.bypass.all") && !player.hasPermission("xtxsmacecontrol.bypass.world")) {
             List<String> allowed = plugin.getConfig().getStringList("acquisition.allowed-worlds");
             List<String> blocked = plugin.getConfig().getStringList("acquisition.blocked-worlds");
             String world = player.getWorld().getName();
@@ -303,12 +325,10 @@ public final class PolicyEngine {
         for (ItemStack item : player.getInventory().getContents()) {
             if (serial.equals(plugin.items().serial(item))) return true;
         }
+        for (ItemStack item : player.getEnderChest().getContents()) {
+            if (serial.equals(plugin.items().serial(item))) return true;
+        }
         return false;
-    }
-
-    private boolean bypass(Player player, String node) {
-        return player.hasPermission("xtxsmacecontrol.bypass.all")
-                || player.hasPermission("xtxsmacecontrol.bypass." + node);
     }
 
     private long millis(double seconds) {
