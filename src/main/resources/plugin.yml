@@ -1,7 +1,7 @@
 name: xtxsMaceControl
-version: '${project.version}'
+version: '2.1.0'
 main: io.github.certifiedcook.xtxsmacecontrol.XtxsMaceControl
-api-version: '1.21'
+api-version: '26.2'
 authors: [Certifiedcook]
 description: "xtx's MaceControl - overengineered mace policy and anti-abuse controls."
 prefix: "xtx's MaceControl"
