@@ -4,6 +4,15 @@ A deliberately overengineered Paper plugin for **controlling the existence, acqu
 
 The GitHub-safe repository/plugin slug is `xtxsMaceControl` / `xtxs-mace-control`; the human-facing name remains **xtx's MaceControl**.
 
+## Compatibility
+
+- **Paper:** 26.2
+- **Paper API:** `26.2.build.112-stable`
+- **Java:** 25+
+- **Plugin version:** 2.1.0
+
+Paper 26.1+ requires Java 25. Older Java 21 runtimes are not supported by this build.
+
 ## What it controls
 
 ### Stock and scarcity
@@ -73,7 +82,7 @@ Independent damage scaling, absolute maximum damage, PvP maximum, PvE maximum an
 Aliases: `/mc`, `/macectl`, `/xtxmc`.
 
 ## Build
-Requires **JDK 21** and Maven.
+Requires **JDK 25** and Maven.
 
 ```bash
 mvn clean package
@@ -81,14 +90,15 @@ mvn clean package
 
 Output: `target/xtxsMaceControl.jar`.
 
-The project targets Paper API `1.21.4-R0.1-SNAPSHOT`.
+The project targets Paper 26.2 using Paper API `26.2.build.112-stable`.
 
 ## Install
-1. Build or download `xtxsMaceControl.jar`.
-2. Put it in the server's `plugins/` directory.
-3. Start/restart the server.
-4. Edit `plugins/xtxsMaceControl/config.yml`.
-5. Run `/macecontrol reload`.
+1. Run a Paper 26.2 server on Java 25 or newer.
+2. Build or download `xtxsMaceControl.jar`.
+3. Put it in the server's `plugins/` directory.
+4. Start/restart the server.
+5. Edit `plugins/xtxsMaceControl/config.yml`.
+6. Run `/macecontrol reload`.
 
 ## Permissions
 - `xtxsmacecontrol.admin`
