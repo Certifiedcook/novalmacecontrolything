@@ -1,0 +1,129 @@
+# xtx's MaceControl
+# Most limits use -1 for unlimited. Durations are seconds unless explicitly stated.
+
+general:
+  enabled: true
+  auto-register-existing-maces: true
+  stamp-serial-in-lore: false
+  notify-player-on-block: true
+  notify-ops-on-block: true
+  log-violations-to-file: true
+  periodic-audit:
+    enabled: true
+    interval-seconds: 15
+    audit-online-inventories: true
+    audit-ender-chests: true
+    audit-loaded-item-entities: true
+  chunk-container-audit:
+    enabled: true
+    on-chunk-load: true
+    max-containers-per-chunk: 64
+
+stock:
+  global-active-registered-cap: 12
+  max-issued-ever: -1
+  issuance-window:
+    enabled: true
+    seconds: 86400
+    max-new-maces: 6
+  per-player-issued-ever: 2
+  per-player-active-possession: 1
+  per-scoreboard-team-active-possession: -1
+  per-world-online-possession: -1
+
+acquisition:
+  enabled: true
+  require-permission: false
+  allow-crafting: true
+  allow-loot: true
+  allow-pickup: true
+  allow-creative: false
+  allow-admin-issue: true
+  blocked-gamemodes: [SPECTATOR]
+  allowed-worlds: []
+  blocked-worlds: []
+  join-grace-seconds: 3
+
+ownership:
+  enabled: true
+  bind-on-first-acquisition: false
+  allow-transfers: true
+  transfer-cooldown-seconds: 300
+  max-transfers-per-mace: 8
+  same-scoreboard-team-only: false
+  owner-must-be-online-for-transfer: false
+
+storage:
+  allow-player-inventory: true
+  allow-ender-chest: false
+  allow-containers: false
+  allow-hoppers: false
+  allow-portable-containers: false
+  max-per-container: 1
+  blocked-inventory-types:
+    - ENDER_CHEST
+
+use:
+  enabled: true
+  require-permission: false
+  block-in-creative: true
+  block-in-spectator: true
+  block-while-flying: true
+  block-while-gliding: true
+  block-in-vehicle: false
+  minimum-fall-distance: 0.0
+  maximum-fall-distance: 80.0
+  player-cooldown-seconds: 8.0
+  mace-cooldown-seconds: 8.0
+  target-cooldown-seconds: 3.0
+  max-hits-per-minute: 8
+  consume-cooldown-on-cancelled-hit: false
+
+damage:
+  enabled: true
+  global-max: 20.0
+  pvp-max: 14.0
+  pve-max: 30.0
+  scale: 1.0
+  max-percent-of-target-max-health: 0.75
+  fall-distance-cap-for-policy: 40.0
+
+enchantments:
+  block-unlisted: true
+  remove-illegal-instead-of-confiscating: true
+  allowed:
+    DENSITY: 5
+    BREACH: 4
+    WIND_BURST: 2
+    MENDING: 1
+    UNBREAKING: 3
+    VANISHING_CURSE: 1
+
+repair:
+  allow-mending: true
+  allow-anvil-repair: true
+  allow-anvil-combine: true
+  allow-renaming: true
+
+death:
+  keep-maces: false
+  confiscate-maces-on-death: false
+
+anti-duplication:
+  enabled: true
+  confiscate-duplicate-serials: true
+  reject-foreign-serials: false
+
+enforcement:
+  default-action: CONFISCATE
+  exempt-admin-issued-from-stock-cap: false
+
+gui:
+  enabled: true
+
+messages:
+  prefix: "&8[&6xtx's MaceControl&8] &7"
+  blocked: "&cMace action blocked: &f{reason}"
+  cooldown: "&cMace cooldown: &f{seconds}s remaining."
+  lockdown: "&cMace use/acquisition is currently under emergency lockdown."
+  confiscated: "&cA mace was confiscated: &f{reason}"
