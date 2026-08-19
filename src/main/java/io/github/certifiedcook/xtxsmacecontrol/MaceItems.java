@@ -54,14 +54,14 @@ public final class MaceItems {
     }
 
     public int countRecursive(ItemStack item) {
-        return countRecursive(item, 0, new HashSet<>());
+        Set<ItemStack> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        return countRecursive(item, 0, visited);
     }
 
     private int countRecursive(ItemStack item, int depth, Set<ItemStack> visited) {
         if (item == null || depth > 4) return 0;
         if (isMace(item)) return item.getAmount();
-        if (!item.hasItemMeta() || visited.contains(item)) return 0;
-        visited.add(item);
+        if (!item.hasItemMeta() || !visited.add(item)) return 0;
 
         int count = 0;
         ItemMeta meta = item.getItemMeta();
