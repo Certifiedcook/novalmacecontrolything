@@ -110,7 +110,7 @@ public final class MaceRegistry {
 
     public synchronized void transfer(String serial, UUID newOwner) {
         MaceRecord record = records.get(serial);
-        if (record == null) return;
+        if (record == null || Objects.equals(record.owner(), newOwner)) return;
         long now = System.currentTimeMillis();
         records.put(serial, record.withOwner(newOwner, record.transfers() + 1, now));
         save();
@@ -118,7 +118,7 @@ public final class MaceRegistry {
 
     public synchronized void setStatus(String serial, String status) {
         MaceRecord record = records.get(serial);
-        if (record == null) return;
+        if (record == null || record.status().equalsIgnoreCase(status)) return;
         records.put(serial, record.withStatus(status, System.currentTimeMillis()));
         save();
     }
