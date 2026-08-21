@@ -1,4 +1,4 @@
-# xtx's MaceControl
+# mace cntrol
 
 A deliberately overengineered Paper plugin for **controlling the existence, acquisition, storage, transfer, enchantments, repair, damage and use of Minecraft maces**.
 
